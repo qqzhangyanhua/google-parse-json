@@ -1,0 +1,44 @@
+{
+  "name": "json-parser-extension",
+  "displayName": "JSON Parser",
+  "version": "0.0.1",
+  "description": "A Chrome extension for parsing JSON strings",
+  "author": "Your Name",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.6.1",
+    "@plasmohq/messaging": "^0.6.2",
+    "@plasmohq/storage": "^1.9.3",
+    "antd": "^5.15.2",
+    "plasmo": "^0.90.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-json-view": "^1.21.3"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.260",
+    "@types/node": "^20.11.25",
+    "@types/react": "^18.2.64",
+    "@types/react-dom": "^18.2.21",
+    "autoprefixer": "^10.4.18",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.4.2"
+  },
+  "manifest": {
+    "host_permissions": [],
+    "permissions": []
+  },
+  "plasmo": {
+    "manifest": {
+      "host_permissions": [],
+      "permissions": []
+    },
+    "iconSet": false,
+    "icon": null
+  }
+}
