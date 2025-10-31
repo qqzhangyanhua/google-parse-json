@@ -3,6 +3,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 修复伪类写法错误，使用 :root 而非 ::root */
 :root {
   --primary-color: #1890ff;
 }
@@ -105,4 +106,34 @@ body {
 
 .overflow-auto::-webkit-scrollbar-thumb:hover {
   background-color: #a0aec0;
-} 
+}
+
+/* 高亮选中行（带过渡） */
+.react-json-view .rjv-highlight {
+  background-color: #fff7d6 !important;
+  border-radius: 4px;
+  transition: background-color 0.25s ease;
+}
+
+/* 列表行紧凑化与可读性优化 */
+.ant-list-split .ant-list-item {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+/* 代码字体统一（与 ReactJson/TS 显示一致） */
+.mono {
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+/* 平滑滚动容器 */
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+/* 代码高亮（深色背景适配） */
+.hl-kw { color: #c792ea; }
+.hl-type { color: #82aaff; }
+.hl-str { color: #c3e88d; }
+.hl-num { color: #f78c6c; }
+.hl-com { color: #6A9955; font-style: italic; }

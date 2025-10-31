@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm build:*)",
+      "Bash(tree:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(pnpm dev)",
+      "Bash(npx tsc:*)",
+      "Bash(npx plasmo:*)",
+      "Bash(timeout 15 pnpm dev:*)",
+      "Bash(python3:*)",
+      "Bash(popup.tsx)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm install:*)",
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
