@@ -2,6 +2,8 @@
 // 目标：覆盖常见场景；支持对象合并、数组联合、可选字段、命名去重
 // 注意：为控制体积与 MV3 CSP，不引入外部库
 
+import type { JsonValue } from "../types"
+
 export type TsGenOptions = {
   rootName?: string
   arraySample?: number
@@ -151,7 +153,7 @@ const isLikelyIsoDate = (s: string): boolean => {
   return iso.test(s) || slash.test(s)
 }
 
-const infer = (v: any, opt: TsGenOptions, depth: number, favorLiterals = false): TypeNode => {
+const infer = (v: JsonValue, opt: TsGenOptions, depth: number, favorLiterals = false): TypeNode => {
   if (depth > (opt.maxDepth ?? 20)) return { kind: "unknown" }
   if (v === null) return { kind: "null" }
   const t = typeof v
@@ -179,13 +181,13 @@ const infer = (v: any, opt: TsGenOptions, depth: number, favorLiterals = false):
     const sampleN = Math.min(v.length, opt.arraySample ?? 100)
     const elems = v.slice(0, sampleN).map((x) => infer(x, opt, depth + 1, true))
     const allObj = elems.every((e) => e.kind === "object")
-    const elem = allObj ? mergeObjects(elems as any, opt) : elems.reduce((acc, cur) => mergeUnion(acc, cur, opt))
+    const elem = allObj ? mergeObjects(elems as ObjectType[], opt) : elems.reduce((acc, cur) => mergeUnion(acc, cur, opt))
     return { kind: "array", elem }
   }
   if (t === "object") {
     const props: Record<string, { t: TypeNode; optional: boolean }> = {}
-    for (const k of Object.keys(v)) {
-      const child = infer(v[k], opt, depth + 1, false)
+    for (const k of Object.keys(v as Record<string, JsonValue>)) {
+      const child = infer((v as Record<string, JsonValue>)[k], opt, depth + 1, false)
       props[k] = { t: child, optional: false }
     }
     return { kind: "object", props }
@@ -193,7 +195,7 @@ const infer = (v: any, opt: TsGenOptions, depth: number, favorLiterals = false):
   return { kind: "unknown" }
 }
 
-export const generateTsFromJson = (value: any, options: TsGenOptions = {}): string => {
+export const generateTsFromJson = (value: JsonValue, options: TsGenOptions = {}): string => {
   const opt: TsGenOptions = { rootName: "Root", arraySample: 100, maxDepth: 20, ...options }
   const root = infer(value, opt, 0, false)
 

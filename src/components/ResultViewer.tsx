@@ -78,7 +78,7 @@ export const ResultViewer: React.FC<ResultViewerProps> = ({
             <div className="text-red-500 text-sm">{error}</div>
           ) : parsedValue ? (
             <ReactJson
-              src={parsedValue as any}
+              src={parsedValue}
               theme={darkMode ? "ocean" : "rjv-default"}
               name={false}
               collapseStringsAfterLength={30}
@@ -91,7 +91,7 @@ export const ResultViewer: React.FC<ResultViewerProps> = ({
                 fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace"
               }}
               iconStyle="square"
-              shouldCollapse={(field: any) => {
+              shouldCollapse={(field: { namespace?: (string | number)[] }) => {
                 // 根据 expandedPaths 强制展开匹配路径；否则按默认深度折叠
                 const ns: (string | number)[] = field?.namespace || []
                 const nsPath = nsToJsonPath(ns)

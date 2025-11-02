@@ -16,16 +16,43 @@ body {
 }
 
 /* Antd overrides */
-.ant-input {
+.ant-input,
+.ant-input-number,
+.ant-select-selector {
   @apply border-gray-300 !important;
 }
 
-.ant-input:hover {
+body.dark-mode .ant-input,
+body.dark-mode .ant-input-number,
+body.dark-mode .ant-select-selector,
+body.dark-mode .ant-input-number-input {
+  background-color: #1f2937 !important; /* gray-800 */
+  border-color: #374151 !important; /* gray-700 */
+  color: #e5e7eb !important; /* gray-200 */
+}
+
+.ant-input:hover,
+.ant-input-number:hover {
   @apply border-blue-400 !important;
 }
 
-.ant-input:focus {
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-number:focus,
+.ant-input-number-focused {
   @apply border-blue-500 !important;
+}
+
+body.dark-mode .ant-input:hover,
+body.dark-mode .ant-input-number:hover {
+  border-color: #60a5fa !important; /* blue-400 */
+}
+
+body.dark-mode .ant-input:focus,
+body.dark-mode .ant-input-focused,
+body.dark-mode .ant-input-number:focus,
+body.dark-mode .ant-input-number-focused {
+  border-color: #3b82f6 !important; /* blue-500 */
 }
 
 .ant-btn-primary {
@@ -68,9 +95,133 @@ body {
   @apply flex items-center;
 }
 
+/* 暗黑模式下的 Message/Tooltip 提示（通过 body.dark-mode 控制，适配 portal 渲染） */
+body.dark-mode .ant-message-notice-content {
+  background-color: #111827 !important; /* gray-900 */
+  color: #e5e7eb !important; /* gray-200 */
+  border: 1px solid #374151 !important; /* gray-700 */
+}
+body.dark-mode .ant-tooltip-inner {
+  background-color: #111827 !important;
+  color: #e5e7eb !important;
+}
+body.dark-mode .ant-tooltip-arrow-content {
+  background-color: #111827 !important;
+}
+
+/* 暗黑模式下的 Collapse 组件样式 */
+body.dark-mode .ant-collapse {
+  background-color: transparent !important;
+  border-color: #374151 !important; /* gray-700 */
+}
+body.dark-mode .ant-collapse-header {
+  background-color: #1f2937 !important; /* gray-800 */
+  color: #e5e7eb !important; /* gray-200 */
+}
+body.dark-mode .ant-collapse-content {
+  background-color: #111827 !important; /* gray-900 */
+  border-color: #374151 !important; /* gray-700 */
+  color: #e5e7eb !important; /* gray-200 */
+}
+body.dark-mode .ant-collapse-content-box {
+  background-color: #1f2937 !important; /* gray-800 */
+}
+
+/* 暗黑模式下的 Button 组件 */
+body.dark-mode .ant-btn:not(.ant-btn-primary) {
+  background-color: #1f2937 !important; /* gray-800 */
+  border-color: #374151 !important; /* gray-700 */
+  color: #e5e7eb !important; /* gray-200 */
+}
+body.dark-mode .ant-btn:not(.ant-btn-primary):hover {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4b5563 !important; /* gray-600 */
+}
+body.dark-mode .ant-btn:disabled {
+  background-color: #111827 !important; /* gray-900 */
+  border-color: #374151 !important; /* gray-700 */
+  color: #6b7280 !important; /* gray-500 */
+}
+
+/* 暗黑模式下的 List 组件 */
+body.dark-mode .ant-list-item {
+  border-color: #374151 !important; /* gray-700 */
+  color: #e5e7eb !important; /* gray-200 */
+}
+
+/* 暗黑模式下的 Divider */
+body.dark-mode .ant-divider {
+  border-color: #374151 !important; /* gray-700 */
+}
+
 /* JSON View customization */
 .react-json-view {
   padding: 8px !important;
+}
+
+/* ReactJson 行距与配色（更接近 VSCode 风格） */
+.react-json-view .variable-row {
+  line-height: 1.6 !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+.react-json-view .object-key {
+  color: #9cdcfe !important; /* VSCode key 蓝 */
+}
+.react-json-view .string-value {
+  color: #ce9178 !important; /* VSCode 字符串 */
+}
+.react-json-view .number-value {
+  color: #b5cea8 !important; /* VSCode 数字 */
+}
+.react-json-view .boolean-value {
+  color: #569cd6 !important; /* VSCode 布尔/关键字蓝 */
+}
+
+/* ReactJson 复制按钮与展开图标 hover 统一为主色 */
+.react-json-view .copy-icon:hover,
+.react-json-view .icon-container:hover,
+.react-json-view .expanded-icon:hover,
+.react-json-view .collapsed-icon:hover {
+  color: var(--primary-color) !important;
+  opacity: .95;
+}
+/* 三角图标可能使用边框颜色，尽量覆盖 */
+.react-json-view .expanded-icon:hover,
+.react-json-view .collapsed-icon:hover {
+  border-color: var(--primary-color) !important;
+  border-left-color: var(--primary-color) !important;
+  border-right-color: var(--primary-color) !important;
+  border-top-color: var(--primary-color) !important;
+  border-bottom-color: var(--primary-color) !important;
+}
+
+/* 暗黑模式下 hover 同样使用主色（已由 var 控制），同时提升可见度 */
+body.dark-mode .react-json-view .copy-icon:hover,
+body.dark-mode .react-json-view .icon-container:hover,
+body.dark-mode .react-json-view .expanded-icon:hover,
+body.dark-mode .react-json-view .collapsed-icon:hover {
+  filter: brightness(1.1);
+}
+
+/* 搜索命中列表高亮（亮/暗两套） */
+.search-hit {
+  background-color: #f9fafb; /* gray-50 */
+}
+.search-hit:hover {
+  background-color: #eef2ff; /* indigo-50 */
+}
+.search-hit-selected {
+  background-color: #dbeafe !important; /* blue-100 */
+}
+body.dark-mode .search-hit {
+  background-color: #111827; /* gray-900 */
+}
+body.dark-mode .search-hit:hover {
+  background-color: #1f2937; /* gray-800 */
+}
+body.dark-mode .search-hit-selected {
+  background-color: #1e3a8a !important; /* blue-900 */
 }
 
 .react-json-view .copy-icon {

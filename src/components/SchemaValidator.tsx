@@ -13,6 +13,20 @@ interface SchemaError {
   keyword?: string
 }
 
+interface AjvError {
+  instancePath?: string
+  dataPath?: string
+  message?: string
+  keyword?: string
+}
+
+interface JsonSchemaError {
+  property?: string
+  message?: string
+  name?: string
+  keyword?: string
+}
+
 interface SchemaValidatorProps {
   parsedValue: JsonValue | null
   onSelectPath: (path: string) => void
@@ -80,34 +94,42 @@ export const SchemaValidator: React.FC<SchemaValidatorProps> = ({
           const need2020 = typeof $schema === "string" && /2020-12/.test($schema)
           const need2019 = typeof $schema === "string" && /2019-09/.test($schema)
 
+          // Dynamic imports with type workarounds for default exports
           let AjvCtor
           if (need2020) {
             const Ajv2020Mod = await import("ajv/dist/2020")
-            AjvCtor = (Ajv2020Mod as any).default || Ajv2020Mod
+            // @ts-expect-error - Dynamic default export handling
+            AjvCtor = Ajv2020Mod.default || Ajv2020Mod
           } else if (need2019) {
             const Ajv2019Mod = await import("ajv/dist/2019")
-            AjvCtor = (Ajv2019Mod as any).default || Ajv2019Mod
+            // @ts-expect-error - Dynamic default export handling
+            AjvCtor = Ajv2019Mod.default || Ajv2019Mod
           } else {
             const AjvMod = await import("ajv")
-            AjvCtor = (AjvMod as any).default || AjvMod
+            // @ts-expect-error - Dynamic default export handling
+            AjvCtor = AjvMod.default || AjvMod
           }
 
           let addFormats
           try {
             const fmt = await import("ajv-formats")
-            addFormats = (fmt as any).default || fmt
+            // @ts-expect-error - Dynamic default export handling
+            addFormats = fmt.default || fmt
           } catch {}
 
+          // @ts-expect-error - Ajv constructor type is complex
           const ajv = new AjvCtor({ allErrors: true, strict: false, allowUnionTypes: true })
 
           // Register meta schemas
           try {
             if (need2020) {
               const meta2020 = await import("ajv/dist/refs/json-schema-2020-12/schema.json")
-              ajv.addMetaSchema((meta2020 as any).default || meta2020)
+              // @ts-expect-error - JSON import default export
+              ajv.addMetaSchema(meta2020.default || meta2020)
             } else if (need2019) {
               const meta2019 = await import("ajv/dist/refs/json-schema-2019-09/schema.json")
-              ajv.addMetaSchema((meta2019 as any).default || meta2019)
+              // @ts-expect-error - JSON import default export
+              ajv.addMetaSchema(meta2019.default || meta2019)
             }
           } catch {}
 
@@ -120,7 +142,7 @@ export const SchemaValidator: React.FC<SchemaValidatorProps> = ({
             setSchemaResult({ ok: true })
             message.success("Schema 校验通过")
           } else {
-            const errs = (validate.errors || []).map((e: any) => ({
+            const errs = (validate.errors || []).map((e: AjvError) => ({
               path: pointerToJsonPath(e.instancePath || e.dataPath || ""),
               message: e.message || "校验失败",
               keyword: e.keyword
@@ -144,7 +166,8 @@ export const SchemaValidator: React.FC<SchemaValidatorProps> = ({
       const tryJsonSchema = async (): Promise<boolean> => {
         try {
           const mod = await import("jsonschema")
-          const validate = (mod as any).validate || (mod as any).default?.validate
+          // @ts-expect-error - Dynamic module export handling
+          const validate = mod.validate || mod.default?.validate
           if (typeof validate !== "function") throw new Error("jsonschema 库未正确加载")
 
           const res = validate(parsedValue, schema)
@@ -169,7 +192,7 @@ export const SchemaValidator: React.FC<SchemaValidatorProps> = ({
               return out
             }
 
-            const errs = (res.errors || []).map((e: any) => ({
+            const errs = (res.errors || []).map((e: JsonSchemaError) => ({
               path: toPath(e.property || ""),
               message: e.message || "校验失败",
               keyword: e.name || e.keyword
@@ -197,7 +220,9 @@ export const SchemaValidator: React.FC<SchemaValidatorProps> = ({
 
   return (
     <div>
-      <div className="font-medium text-gray-700 mb-2">Schema 校验</div>
+      <div className="font-semibold text-sm text-orange-600 dark:text-orange-400 mb-2">
+        📋 Schema 校验
+      </div>
       <div className="flex items-center gap-2 mb-2">
         <Button onClick={loadSampleSchema} size="small">
           示例
@@ -210,6 +235,7 @@ export const SchemaValidator: React.FC<SchemaValidatorProps> = ({
           loading={schemaBusy}
           onClick={validateBySchema}
           size="small"
+          disabled={!parsedValue}
         >
           校验
         </Button>

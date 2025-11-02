@@ -1,5 +1,5 @@
-// JSONPath manipulation utilities
-// Supports both bracket notation $["key"][0] and dot notation $.key[0]
+// JSONPath 工具
+// 同时支持方括号表示法 $["key"][0]["nested"] 与点表示法 $.key[0].nested
 
 import type { JsonValue, JsonObject } from "../types"
 
@@ -10,28 +10,69 @@ export type PathSegment = string | number
  * Supports: $["key"][0]["nested"]
  */
 export const jsonPathToSegments = (p: string): PathSegment[] => {
+  if (!p) return []
+  let i = 0
+  const s = p.trim()
+  const n = s.length
   const segs: PathSegment[] = []
-  const re = /\[(.*?)\]/g
-  let m: RegExpExecArray | null
 
-  while ((m = re.exec(p))) {
-    const inner = m[1]
-    if (/^\d+$/.test(inner)) {
-      segs.push(Number(inner))
-    } else {
-      // Remove quotes and handle escaping
-      const s = inner.trim()
-      const q = s[0]
-      if (q === '"' || q === "'") {
-        try {
-          segs.push(JSON.parse(s))
-        } catch {
-          segs.push(s.slice(1, -1))
-        }
-      } else {
-        segs.push(inner)
+  // 跳过起始 $
+  if (s[i] === '$') i++
+
+  const isId = (ch: string) =>
+    (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch === '_' || ch === '$'
+
+  while (i < n) {
+    const ch = s[i]
+    if (ch === '.' ) {
+      // 点表示法：解析标识符
+      i++
+      let start = i
+      if (i >= n) break
+      if (!isId(s[i])) {
+        // 点后非标识符，可能紧跟方括号，如 $.['weird']
+        continue
       }
+      i++
+      while (i < n) {
+        const c = s[i]
+        if (isId(c) || (c >= '0' && c <= '9')) i++
+        else break
+      }
+      const key = s.slice(start, i)
+      if (key.length) segs.push(key)
+      continue
     }
+
+    if (ch === '[') {
+      // 方括号
+      i++
+      // 读取直到 ]
+      let inner = ''
+      while (i < n && s[i] !== ']') {
+        inner += s[i]
+        i++
+      }
+      // 跳过 ]
+      if (i < n && s[i] === ']') i++
+
+      const t = inner.trim()
+      if (/^\d+$/.test(t)) {
+        segs.push(Number(t))
+      } else if (t.startsWith('"') || t.startsWith("'")) {
+        try {
+          segs.push(JSON.parse(t))
+        } catch {
+          segs.push(t.slice(1, -1))
+        }
+      } else if (t.length) {
+        segs.push(t)
+      }
+      continue
+    }
+
+    // 其他字符（空白等）直接跳过，避免死循环
+    i++
   }
 
   return segs

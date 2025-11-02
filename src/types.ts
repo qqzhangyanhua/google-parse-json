@@ -69,20 +69,11 @@ export interface JsonViewerProps {
 }
 
 export interface SearchPanelProps {
-  parsedValue: JsonValue | null
-  searchTerm: string
-  setSearchTerm: (term: string) => void
-  searchResults: string[]
-  onSearch: () => void
   onExportCsv: () => void
-  jumpPath: string
-  setJumpPath: (path: string) => void
   onSelectPath: (path: string) => void
   onCopyPath: (path: string) => void
   onCopyDotPath: (path: string) => void
   onCopyValueAtPath: (path: string) => void
-  selectedPath: string
-  steps: string[]
 }
 
 export interface SchemaValidatorProps {
@@ -112,11 +103,7 @@ export interface TypeScriptGeneratorProps {
 }
 
 export interface HistoryPanelProps {
-  history: HistoryItem[]
-  loading: boolean
   onLoadItem: (raw: string) => void
-  onRemoveItem: (id: string) => void
-  onClearHistory: () => void
 }
 
 export interface VirtualRootProps {
@@ -126,6 +113,36 @@ export interface VirtualRootProps {
   onSelectPath: (path: string) => void
   onCopyPath: (path: string) => void
   onCopyValueAtPath: (path: string) => void
+}
+
+// API Builder types
+export type ApiRequestState = "idle" | "loading" | "success" | "error"
+
+export interface ApiResponse {
+  status: number
+  statusText: string
+  headers: Record<string, string>
+  data: string
+  duration: number
+  error?: string
+}
+
+export interface ApiBuilderProps {
+  parsedValue: JsonValue | null
+  darkMode?: boolean
+}
+
+// Data Masking types
+export interface DataMaskingPanelProps {
+  parsedValue: JsonValue | null
+  darkMode?: boolean
+  onApplyMaskedData?: (data: JsonValue) => void
+}
+
+// Data Visualization types
+export interface DataVisualizationProps {
+  parsedValue: JsonValue | null
+  darkMode?: boolean
 }
 
 // Re-export HistoryItem for convenience

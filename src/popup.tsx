@@ -1,16 +1,15 @@
-import React, { useEffect, useRef, useState } from "react"
-import { ConfigProvider, Input, message, Divider } from "antd"
+import React, { useEffect, useMemo, useRef, lazy, Suspense } from "react"
+import { ConfigProvider, Input, message, Divider, Tabs, theme, Spin } from "antd"
 import "./style.css"
 
 // 统一使用已封装的工具与组件，避免在本文件重复实现
-import { loadHistory, saveHistoryItem, type HistoryItem } from "./utils/history"
+import { saveHistoryItem } from "./utils/history"
 import { parseSmart } from "./utils/json-parser"
 import {
   jsonPathToSegments,
   segmentsToJsonPath,
   segmentsToDotPath,
   getBySegments,
-  searchJsonPaths,
   downloadJson,
   downloadText
 } from "./utils/json-path"
@@ -22,46 +21,79 @@ import {
 } from "./utils/clipboard"
 import { HistoryPanel } from "./components/HistoryPanel"
 import { SearchPanel } from "./components/SearchPanel"
-import { SchemaValidator } from "./components/SchemaValidator"
-import { TypeScriptGenerator } from "./components/TypeScriptGenerator"
 import { HeaderBar } from "./components/HeaderBar"
 import { ResultViewer } from "./components/ResultViewer"
+import { DataStatsPanel } from "./components/DataStatsPanel"
+import { PerformanceMonitor } from "./components/PerformanceMonitor"
+import {
+  DataVisualization,
+  ApiBuilder,
+  DataMaskingPanel
+} from "./components/SimplifiedComponents"
+import { loadUIPrefs, saveUIPrefs } from "./utils/settings"
+import { useAppStore } from "./store/useAppStore"
+import { performanceMonitor, calculateDataSize } from "./utils/performance-monitor"
+
+// Lazy load non-critical components for better performance
+const SchemaValidator = lazy(() => import("./components/SchemaValidator").then(m => ({ default: m.SchemaValidator })))
+const TypeScriptGenerator = lazy(() => import("./components/TypeScriptGenerator").then(m => ({ default: m.TypeScriptGenerator })))
+const FormatConverter = lazy(() => import("./components/FormatConverter").then(m => ({ default: m.FormatConverter })))
+const BatchExtract = lazy(() => import("./components/BatchExtract").then(m => ({ default: m.BatchExtract })))
 
 const { TextArea } = Input
 
 const IndexPopup = () => {
-  // 基础状态
-  const [inputValue, setInputValue] = useState("")
-  const [parsedValue, setParsedValue] = useState<any>(null)
-  const [error, setError] = useState("")
-  const [autoDecode, setAutoDecode] = useState(true)
-  const [sortKeys, setSortKeys] = useState(false)
-  const [steps, setSteps] = useState<string[]>([])
-
-  // 历史记录
-  const [history, setHistory] = useState<HistoryItem[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
-
-  // 搜索与定位
-  const [searchTerm, setSearchTerm] = useState("")
-  const [searchResults, setSearchResults] = useState<string[]>([])
-  const [expandedPaths, setExpandedPaths] = useState<string[]>([])
-  const [selectedPath, setSelectedPath] = useState<string>("")
-  const [jumpPath, setJumpPath] = useState<string>("")
-
-  // 视图与权限
-  const [clipPerm, setClipPerm] = useState<boolean | null>(null)
-  const [collapseDepth, setCollapseDepth] = useState<number>(2)
-  const [perfMode, setPerfMode] = useState<boolean>(false)
-  const [forceRenderAll, setForceRenderAll] = useState<boolean>(false)
-  const [darkMode, setDarkMode] = useState<boolean>(false)
-  const [antdPrimary, setAntdPrimary] = useState<string>("#1890ff")
+  // 使用 Zustand 管理的全局状态
+  const {
+    inputValue,
+    setInputValue,
+    parsedValue,
+    setParsedValue,
+    error,
+    setError,
+    autoDecode,
+    setAutoDecode,
+    sortKeys,
+    setSortKeys,
+    searchTerm,
+    setSearchTerm,
+    setSteps,
+    steps,
+    searchResults,
+    setSearchResults,
+    jumpPath,
+    setJumpPath,
+    expandedPaths,
+    setExpandedPaths,
+    addExpandedPath,
+    selectedPath,
+    setSelectedPath,
+    clipPerm,
+    setClipPerm,
+    collapseDepth,
+    setCollapseDepth,
+    perfMode,
+    setPerfMode,
+    forceRenderAll,
+    setForceRenderAll,
+    darkMode,
+    setDarkMode,
+    antdPrimary,
+    setAntdPrimary,
+    fontSize,
+    setFontSize,
+    history,
+    loadingHistory,
+    refreshHistory,
+    clearHistoryList,
+    removeHistoryEntry,
+    performSearch
+  } = useAppStore()
 
   useEffect(() => {
-    // 加载历史记录
-    setLoadingHistory(true)
-    loadHistory().then(setHistory).finally(() => setLoadingHistory(false))
-  }, [])
+    // 初始化加载历史记录
+    refreshHistory().catch(() => {})
+  }, [refreshHistory])
 
   // 检查可选权限当前状态
   useEffect(() => {
@@ -78,40 +110,59 @@ const IndexPopup = () => {
     } catch {}
   }, [])
 
+  // 读取并恢复 UI 偏好
+  useEffect(() => {
+    loadUIPrefs().then((prefs) => {
+      if (typeof prefs.darkMode === "boolean") setDarkMode(prefs.darkMode)
+      if (typeof prefs.fontSize === "number") setFontSize(prefs.fontSize)
+    })
+  }, [])
+
+  // 偏好变更时持久化
+  useEffect(() => {
+    saveUIPrefs({ darkMode, fontSize }).catch(() => {})
+  }, [darkMode, fontSize])
+
+  const hasInput = useMemo(() => Boolean(inputValue.trim()), [inputValue])
+
+  const describeJsonParseError = (raw: string, err: unknown): string => {
+    const error = err as { message?: string }
+    const msg = String(error?.message || "JSON 解析失败")
+    const posMatch = msg.match(/position\s+(\d+)/i)
+    if (posMatch) {
+      const pos = Number(posMatch[1])
+      if (!Number.isNaN(pos)) {
+        let line = 1
+        let column = 1
+        for (let i = 0; i < pos && i < raw.length; i++) {
+          if (raw[i] === "\n") {
+            line += 1
+            column = 1
+          } else {
+            column += 1
+          }
+        }
+        return `第 ${line} 行第 ${column} 列附近：${msg}`
+      }
+    }
+    return msg
+  }
+
   // —— 解析与历史 ——
-  const handleParse = () => {
-    if (!inputValue.trim()) {
+  const handleParse = (textToParse?: string) => {
+    const text = textToParse ?? inputValue
+    if (!text.trim()) {
       setError("Please enter a JSON string")
       setParsedValue(null)
       message.warning("Please enter a JSON string")
       return
     }
 
-    try {
-      const { data, steps } = parseSmart(inputValue, {
-        autoDecode,
-        sortKeys,
-        parseNested: true
-      })
-      setParsedValue(data)
-      setSteps(steps)
-      setError("")
-      setSearchResults([])
-      setExpandedPaths([])
-      setSelectedPath("")
-      message.success("Successfully parsed!")
-      saveHistoryItem(inputValue, steps).then(() => loadHistory().then(setHistory))
-    } catch (err) {
-      setError((err as any)?.message || "Invalid JSON string")
-      setParsedValue(null)
-      message.error((err as any)?.message || "Invalid JSON string")
-    }
-  }
+    // 开始性能监控
+    const operationId = performanceMonitor.startOperation('parse')
+    const dataSize = calculateDataSize(text)
 
-  const handlePasteAndParse = async () => {
     try {
-      const text = await readClipboardText()
-      setInputValue(text)
       const { data, steps } = parseSmart(text, {
         autoDecode,
         sortKeys,
@@ -123,10 +174,60 @@ const IndexPopup = () => {
       setSearchResults([])
       setExpandedPaths([])
       setSelectedPath("")
+
+      // 结束性能监控 - 成功
+      performanceMonitor.endOperation(operationId, true, undefined, dataSize)
+      message.success(textToParse ? "已载入历史记录" : "Successfully parsed!")
+      saveHistoryItem(text, steps).then(refreshHistory).catch(() => {})
+    } catch (err) {
+      const error = err as { message?: string }
+      let msg = error?.message || "Invalid JSON string"
+      if (text.trim()) {
+        try {
+          JSON.parse(text)
+        } catch (nativeErr) {
+          msg = describeJsonParseError(text, nativeErr)
+        }
+      }
+
+      // 结束性能监控 - 失败
+      performanceMonitor.endOperation(operationId, false, msg, dataSize)
+      setError(msg)
+      setParsedValue(null)
+      message.error(msg)
+    }
+  }
+
+  const handlePasteAndParse = async () => {
+    let clipboardText = ""
+    try {
+      clipboardText = await readClipboardText()
+      setInputValue(clipboardText)
+      const { data, steps } = parseSmart(clipboardText, {
+        autoDecode,
+        sortKeys,
+        parseNested: true
+      })
+      setParsedValue(data)
+      setSteps(steps)
+      setError("")
+      setSearchResults([])
+      setExpandedPaths([])
+      setSelectedPath("")
       message.success("Parsed from clipboard!")
-      saveHistoryItem(text, steps).then(() => loadHistory().then(setHistory))
-    } catch (e: any) {
-      message.error(e?.message || "读取剪贴板失败")
+      saveHistoryItem(clipboardText, steps).then(refreshHistory).catch(() => {})
+    } catch (e: unknown) {
+      const error = e as { message?: string }
+      let msg = error?.message || "读取剪贴板失败"
+      const sourceText = clipboardText || inputValue
+      if (sourceText) {
+        try {
+          JSON.parse(sourceText)
+        } catch (nativeErr) {
+          msg = describeJsonParseError(sourceText, nativeErr)
+        }
+      }
+      message.error(msg)
     }
   }
 
@@ -135,14 +236,46 @@ const IndexPopup = () => {
     downloadJson(parsedValue)
   }
 
-  // —— 搜索 ——
-  const handleSearch = () => {
-    if (!parsedValue || !searchTerm.trim()) {
-      setSearchResults([])
+  const handleFormat = () => {
+    if (!hasInput) {
+      message.warning("请先输入 JSON 文本")
       return
     }
-    const res = searchJsonPaths(parsedValue, searchTerm.trim())
-    setSearchResults(res)
+    try {
+      const obj = JSON.parse(inputValue)
+      const pretty = JSON.stringify(obj, null, 2)
+      setInputValue(pretty)
+      setParsedValue(obj)
+      setError("")
+      message.success("已格式化 JSON")
+    } catch (err) {
+      message.error(describeJsonParseError(inputValue, err))
+    }
+  }
+
+  const handleMinify = () => {
+    if (!hasInput) {
+      message.warning("请先输入 JSON 文本")
+      return
+    }
+    try {
+      const obj = JSON.parse(inputValue)
+      const compact = JSON.stringify(obj)
+      setInputValue(compact)
+      setParsedValue(obj)
+      setError("")
+      message.success("已压缩 JSON")
+    } catch (err) {
+      message.error(describeJsonParseError(inputValue, err))
+    }
+  }
+
+  const handleClearHistory = () => {
+    clearHistoryList().catch(() => {})
+  }
+
+  const handleRemoveHistory = (id: string) => {
+    removeHistoryEntry(id).catch(() => {})
   }
 
   const handleRequestClipboardPermission = async () => {
@@ -159,10 +292,7 @@ const IndexPopup = () => {
 
   const handleSelectPath = (p: string) => {
     setSelectedPath(p)
-    setExpandedPaths((prev) => {
-      if (prev.includes(p)) return prev
-      return [...prev, p]
-    })
+    addExpandedPath(p)
     // 等待展开生效后滚动定位
     setTimeout(() => scrollToPath(p), 60)
   }
@@ -197,7 +327,7 @@ const IndexPopup = () => {
   }
 
   // ReactJson 的复制钩子
-  const handleCopy = (e: any) => {
+  const handleCopy = (e: { src: unknown }) => {
     const copyValue = typeof e.src === "object" ? JSON.stringify(e.src, null, 2) : String(e.src)
     copyText(copyValue, "Copied to clipboard!")
     return true
@@ -212,13 +342,13 @@ const IndexPopup = () => {
     return false
   })()
 
-  const buildRootVirtualItems = (): { idx: number; key: string | number; value: any; path: string }[] => {
+  const buildRootVirtualItems = (): { idx: number; key: string | number; value: JsonValue; path: string }[] => {
     if (!parsedValue) return []
     if (Array.isArray(parsedValue)) {
       return parsedValue.map((v, i) => ({ idx: i, key: i, value: v, path: `$[${i}]` }))
     }
     if (parsedValue && typeof parsedValue === "object") {
-      return Object.keys(parsedValue).map((k, i) => ({ idx: i, key: k, value: (parsedValue as any)[k], path: `$[${JSON.stringify(k)}]` }))
+      return Object.keys(parsedValue).map((k, i) => ({ idx: i, key: k, value: (parsedValue as Record<string, JsonValue>)[k], path: `$[${JSON.stringify(k)}]` }))
     }
     return []
   }
@@ -257,16 +387,24 @@ const IndexPopup = () => {
     setTimeout(() => rowEl.classList.remove("rjv-highlight"), 1200)
   }
 
+  // 将暗黑模式同步到 body，影响 portal（message/tooltip）
+  useEffect(() => {
+    document.body.classList.toggle("dark-mode", darkMode)
+  }, [darkMode])
+
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: antdPrimary } }}>
-    <div className="w-full max-w-[1000px] min-h-[480px] p-5 bg-white">
-      <h1 className="text-2xl font-bold mb-3 text-center text-gray-800">JSON Parser</h1>
+    <ConfigProvider theme={{ token: { colorPrimary: antdPrimary }, algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm }}>
+    <div className={`w-[900px] min-h-[480px] p-4 overflow-hidden ${darkMode ? "text-gray-100 bg-gray-900" : "bg-white"}`}>
+      <h1 className={`text-xl font-bold mb-3 text-center ${darkMode ? "text-gray-100" : "text-gray-800"}`}>JSON Parser</h1>
 
       <HeaderBar
         onPasteAndParse={handlePasteAndParse}
         onParse={handleParse}
         onExport={handleExport}
+        onFormat={handleFormat}
+        onMinify={handleMinify}
         canExport={Boolean(parsedValue)}
+        hasInput={hasInput}
         clipPerm={clipPerm}
         onRequestClipboardPermission={handleRequestClipboardPermission}
         autoDecode={autoDecode}
@@ -274,39 +412,167 @@ const IndexPopup = () => {
         sortKeys={sortKeys}
         setSortKeys={setSortKeys}
         collapseDepth={collapseDepth}
-        setCollapseDepth={(v) => setCollapseDepth(v)}
+        setCollapseDepth={setCollapseDepth}
         perfMode={perfMode}
         setPerfMode={setPerfMode}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
+        fontSize={fontSize}
+        setFontSize={setFontSize}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid overflow-hidden grid-cols-2 gap-3">
         {/* 左侧：输入与历史 */}
-        <div>
-          <div className="mb-2 font-medium text-gray-700">输入：</div>
+        <div className="flex overflow-hidden flex-col">
+          <div className={`mb-2 text-sm font-semibold ${darkMode ? "text-blue-400" : "text-blue-600"}`}>
+            输入区
+          </div>
           <TextArea
             rows={10}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="粘贴 JSON 字符串，或 URL/Base64/JWT/混杂日志文本，点击解析"
+            className="mb-2"
           />
-          <Divider className="my-3" />
+
+          <Divider className="my-2" />
 
           <HistoryPanel
             history={history}
             loading={loadingHistory}
+            onClearAll={handleClearHistory}
+            onRemove={handleRemoveHistory}
             onLoadItem={(raw) => {
               setInputValue(raw)
-              setTimeout(handleParse, 0)
+              handleParse(raw)
             }}
-            onHistoryChange={setHistory}
           />
         </div>
 
-        {/* 右侧：结果与工具 */}
-        <div>
-          <div className="mb-2 font-medium text-gray-700">解析结果：</div>
+        {/* 右侧：工具与结果 */}
+        <div className="flex overflow-hidden flex-col">
+          <Tabs
+            defaultActiveKey="search"
+            size="small"
+            items={[
+              {
+                key: "search",
+                label: "路径搜索",
+                children: (
+                  <SearchPanel
+                    parsedValue={parsedValue}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    searchResults={searchResults}
+                    jumpPath={jumpPath}
+                    setJumpPath={setJumpPath}
+                    selectedPath={selectedPath}
+                    steps={steps}
+                    performSearch={performSearch}
+                    onExportCsv={exportSearchCsv}
+                    onSelectPath={handleSelectPath}
+                    onCopyPath={handleCopyPath}
+                    onCopyDotPath={handleCopyDotPath}
+                    onCopyValueAtPath={handleCopyValueAtPath}
+                  />
+                )
+              },
+              {
+                key: "stats",
+                label: "数据统计",
+                children: (
+                  <DataStatsPanel
+                    parsedValue={parsedValue}
+                    darkMode={darkMode}
+                    onSelectPath={handleSelectPath}
+                  />
+                )
+              },
+              {
+                key: "extract",
+                label: "批量抽取",
+                children: (
+                  <Suspense fallback={<div className="text-center p-4"><Spin /></div>}>
+                    <BatchExtract parsedValue={parsedValue} darkMode={darkMode} />
+                  </Suspense>
+                )
+              },
+              {
+                key: "schema",
+                label: "Schema校验",
+                children: (
+                  <Suspense fallback={<div className="text-center p-4"><Spin /></div>}>
+                    <SchemaValidator
+                      parsedValue={parsedValue}
+                      onSelectPath={handleSelectPath}
+                      onCopyPath={handleCopyPath}
+                    />
+                  </Suspense>
+                )
+              },
+              {
+                key: "typescript",
+                label: "TS类型生成",
+                children: (
+                  <Suspense fallback={<div className="text-center p-4"><Spin /></div>}>
+                    <TypeScriptGenerator parsedValue={parsedValue} darkMode={darkMode} fontSize={fontSize} />
+                  </Suspense>
+                )
+              },
+              {
+                key: "convert",
+                label: "格式转换",
+                children: (
+                  <Suspense fallback={<div className="text-center p-4"><Spin /></div>}>
+                    <FormatConverter
+                      parsedValue={parsedValue}
+                      setInputValue={setInputValue}
+                      setParsedValue={setParsedValue}
+                      setError={setError}
+                      setSteps={setSteps}
+                    />
+                  </Suspense>
+                )
+              },
+              {
+                key: "visualization",
+                label: "数据可视化",
+                children: <DataVisualization parsedValue={parsedValue} darkMode={darkMode} />
+              },
+              {
+                key: "api",
+                label: "API构建器",
+                children: <ApiBuilder parsedValue={parsedValue} darkMode={darkMode} />
+              },
+              {
+                key: "masking",
+                label: "数据脱敏",
+                children: (
+                  <DataMaskingPanel
+                    parsedValue={parsedValue}
+                    darkMode={darkMode}
+                    onApplyMaskedData={(data) => {
+                      setInputValue(JSON.stringify(data, null, 2))
+                      setParsedValue(data)
+                      setError("")
+                      setSteps(["数据脱敏处理"])
+                    }}
+                  />
+                )
+              },
+              {
+                key: "performance",
+                label: "性能监控",
+                children: <PerformanceMonitor parsedValue={parsedValue} darkMode={darkMode} />
+              }
+            ]}
+          />
+
+          <Divider className="my-2" />
+
+          <div className={`mb-2 text-sm font-semibold ${darkMode ? "text-green-400" : "text-green-600"}`}>
+            解析结果
+          </div>
           <ResultViewer
             parsedValue={parsedValue}
             error={error}
@@ -324,36 +590,8 @@ const IndexPopup = () => {
             onCopy={handleCopy}
             buildRootVirtualItems={buildRootVirtualItems}
             darkMode={darkMode}
+            fontSize={fontSize}
           />
-
-          <SearchPanel
-            parsedValue={parsedValue}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            searchResults={searchResults}
-            onSearch={handleSearch}
-            onExportCsv={exportSearchCsv}
-            jumpPath={jumpPath}
-            setJumpPath={setJumpPath}
-            onSelectPath={handleSelectPath}
-            onCopyPath={handleCopyPath}
-            onCopyDotPath={handleCopyDotPath}
-            onCopyValueAtPath={handleCopyValueAtPath}
-            selectedPath={selectedPath}
-            steps={steps}
-          />
-
-          <Divider className="my-3" />
-
-          <SchemaValidator
-            parsedValue={parsedValue}
-            onSelectPath={handleSelectPath}
-            onCopyPath={handleCopyPath}
-          />
-
-          <Divider className="my-3" />
-
-          <TypeScriptGenerator parsedValue={parsedValue} darkMode={darkMode} />
         </div>
       </div>
     </div>
